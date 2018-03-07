@@ -100,7 +100,7 @@ class image:
         http://www.pyimagesearch.com/2017/02/20/text-skew-correction-opencv-python/
         :return:
         '''
-        ret , self.BinImg = cv2.threshold(self.img,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
+        ret, self.BinImg = cv2.threshold(self.img,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
         # coords = np.column_stack(np.where(self.BinImg > ret))
         # angle = cv2.minAreaRect(coords)[-1]
         # if angle < -45:
@@ -112,7 +112,7 @@ class image:
         # print (angle)
         center = (self.col/2,self.row/2)
         M = cv2.getRotationMatrix2D(center, angle, 1.0)
-        self.BinImg = cv2.warpAffine(self.BinImg, M, (self.col , self.row), flags=cv2.INTER_LINEAR,borderMode=cv2.BORDER_REPLICATE)
+        self.BinImg = cv2.warpAffine(self.BinImg, M, (self.col, self.row), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
         coords = np.column_stack(np.where(self.BinImg > ret))
         Big = np.amax(coords, axis=0)
         Small = np.amin(coords, axis=0)
@@ -121,8 +121,8 @@ class image:
         # cv2.namedWindow('test1', cv2.WINDOW_NORMAL)
         # cv2.resizeWindow('test1', 600, 800)
         # cv2.imshow('test1', self.BinImg)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
         h, w = self.BinImg.shape
         find = False
         top = 0
@@ -808,22 +808,37 @@ def two_word_mid(img):
     for i in range(w):
         hist.append(np.count_nonzero(img[:, i]))
 
+    hor_start = 0
+    hor_end = w - 1
+    for i in range(len(hist)):
+        if hist[i] > 1:
+            hor_start = i
+            break
+    hist.reverse()
+    for i in range(len(hist)):
+        if hist[i] > 1:
+            hor_end = w - i
+            break
+    hist.reverse()
+
     candidate_mid = []
     start = -1
     end = -2
     for i in range(len(hist)):
-        if hist[i] < h*0.05 and start == -1:
+        if hist[i] < h * 0.05 and start == -1:
             start = i
-        elif hist[i] < h*0.05:
+        elif hist[i] < h * 0.05:
             pass
-        elif hist[i] >= h*0.05 and start != -1 and end == -2:
+        elif hist[i] >= h * 0.05 and start != -1 and end == -2:
             end = i
             if end - start >= 3:
-                candidate_mid.append(int((start+end)/2))
+                candidate_mid.append(int((start + end) / 2))
             start = -1
             end = -2
+    hor_mid = int((hor_end + hor_start) / 2)
+    # print(int(w/2), hor_mid)
     for i in candidate_mid:
-        if w*0.4 < i < w*0.6:
+        if hor_mid * 0.8 < i < hor_mid * 1.2:
             count_two_word += 1
             return i
     return 0
@@ -920,20 +935,120 @@ def two_word(img):
             end = -2
     hor_mid = int((hor_end+hor_start)/2)
     # print(int(w/2), hor_mid)
+    middle_blank = False
     for i in candidate_mid:
         if hor_mid*0.8 < i < hor_mid*1.2:
+            middle_blank = True
             # cv2.imwrite("half/" + str(count_name)+".jpg", img)  # 雙行
             # count_name += 1
             # count_name1 += 1
             # print("two")
             # cv2.destroyAllWindows()
-            return True
+    if not middle_blank:
+        return False
+    # 比較左右大小比例
+    else:
+        mid = two_word_mid(img)
+        print("mid: " + str(h), str(w), str(mid))
+        left_img = img[:, 0:mid]
+        right_img = img[:, mid:-1]
+        # kernel = np.ones((3, 3), np.uint8)
+        # right_img = cv2.morphologyEx(right_img, cv2.MORPH_OPEN, kernel)
+        # left_img = cv2.morphologyEx(left_img, cv2.MORPH_OPEN, kernel)
+
+        left_h, left_w = left_img.shape
+        right_h, right_w = right_img.shape
+        left_hist1 = []
+        left_hist2 = []
+        right_hist1 = []
+        right_hist2 = []
+        # 左圖垂直投影
+        for i in range(left_w):
+            left_hist1.append(np.count_nonzero(left_img[:, i]))
+        # 左圖水平投影
+        for i in range(left_h):
+            left_hist2.append(np.count_nonzero(left_img[i, :]))
+        # 右圖垂直投影
+        for i in range(right_w):
+            right_hist1.append(np.count_nonzero(right_img[:, i]))
+        # 右圖水平投影
+        for i in range(right_h):
+            right_hist2.append(np.count_nonzero(right_img[i, :]))
+
+        left_hor_start = 0
+        left_hor_end = left_w-1
+        left_ver_start = 0
+        left_ver_end = left_h-1
+        right_hor_start = 0
+        right_hor_end = right_w-1
+        right_ver_start = 0
+        right_ver_end = right_h-1
+        # 左圖
+        for i in range(len(left_hist1)):
+            if left_hist1[i] > 1:
+                left_hor_start = i
+                break
+        left_hist1.reverse()
+        for i in range(len(left_hist1)):
+            if left_hist1[i] > 1:
+                left_hor_end = left_w - i
+                break
+        left_hist1.reverse()
+
+        for i in range(len(left_hist2)):
+            if left_hist2[i] > 1:
+                left_ver_start = i
+                break
+        left_hist2.reverse()
+        for i in range(len(left_hist2)):
+            if left_hist2[i] > 1:
+                left_ver_end = left_h - i
+                break
+        left_hist2.reverse()
+
+        # 右圖
+        for i in range(len(right_hist1)):
+            if right_hist1[i] > 1:
+                right_hor_start = i
+                break
+        right_hist1.reverse()
+        for i in range(len(right_hist1)):
+            if right_hist1[i] > 1:
+                right_hor_end = right_w - i
+                break
+        right_hist1.reverse()
+
+        for i in range(len(right_hist2)):
+            if right_hist2[i] > 1:
+                right_ver_start = i
+                break
+        right_hist2.reverse()
+        for i in range(len(right_hist2)):
+            if right_hist2[i] > 1:
+                right_ver_end = right_h - i
+                break
+        right_hist2.reverse()
+
+        # 長寬比、長度比、寬度比、周長
+        print(left_hor_start, left_hor_end, left_hor_end-left_hor_start)
+        print(left_ver_start, left_ver_end, left_ver_end-left_ver_start)
+        print(right_hor_start, right_hor_end, right_hor_end-right_hor_start)
+        print(right_ver_start, right_ver_end, right_ver_end-right_ver_start)
+        print("左圖長寬比：" + str((left_hor_end-left_hor_start)/(left_ver_end-left_ver_start)))
+        print("右圖長寬比：" + str((right_hor_end-right_hor_start)/(right_ver_end-right_ver_start)))
+        print("長度比：" + str((left_hor_end-left_hor_start)/(right_hor_end-right_hor_start)))
+        print("寬度比：" + str((left_ver_end-left_ver_start)/(right_ver_end-right_ver_start)))
+        cv2.imshow("left", left_img)
+        cv2.imshow("right", right_img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+        return True
     # cv2.destroyAllWindows()
     # cv2.imwrite("half/" + str(count_name)+".jpg", img)
     # count_name += 1
     # count_name2 += 1
     # print("one")
-    return False
 
 def LCS(a, b):
     '''
