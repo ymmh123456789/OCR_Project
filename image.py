@@ -7,7 +7,7 @@ import statistics
 # import pytesseract
 # from PIL import Image
 
-# model = load_model("blackB_whiteT1.0_model.h5")
+# model = load_model("NEW_blackB_whiteT1.0_model_2.h5")
 one = 0
 two = 0
 three = 0
@@ -82,9 +82,11 @@ class image:
      self.row , self.col -> self.shape
      self.BinImg -> Binary Image after auto Rotated
     '''
-    def __init__(self,filename):
+    def __init__(self,filename,words):
         self.img = cv2.imread(filename,0)
         self.row , self.col = self.img.shape
+        self.filename = filename.split("/")[-1]
+        self.words = words
 
     def show(self):
         cv2.namedWindow('test1', cv2.WINDOW_NORMAL)
@@ -160,19 +162,24 @@ class image:
         last_line = 0
         # left to right
         for i in range(10, len(hist) - 10):
-            if hist[i] < hist[i + 5] / 2 and hist[i] - min(
+            if hist[i] < hist[i + 5] / 2 and hist[i] < hist[i + 8] / 2 and hist[i] - min(
                     hist[20:-20]) < 10 and i > last_line + 10:
                 line1.append(i)
+                # self.BinImg[:, i] = 127
                 last_line = i
                 i += 5
         # right to left
         last_line = len(hist)
         for i in range(len(hist) - 10, 10, -1):
-            if hist[i] < hist[i - 3] / 2 and hist[i] - min(
+            if hist[i] < hist[i - 5] / 2 and hist[i] < hist[i - 8] / 2 and hist[i] - min(
                     hist[20:-20]) < 10 and i < last_line - 10:
                 line2.append(i)
+                # self.BinImg[:, i] = 126
                 last_line = i
                 i -= 5
+        # cv2.imshow("all", self.BinImg)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
         # 把兩個合起來然後sort
         line = line1 + line2
         line.sort()
@@ -205,7 +212,7 @@ class image:
             # cv2.waitKey(0)
             # cv2.destroyAllWindows()
         self.__segment.reverse()
-        print("此頁切出" + str(len(self.__segment)) + "行")
+        print("切割行數：" + str(len(self.__segment)) + "/" + str(len(self.words)) + " 行")
 
 
         return len(self.__segment), self.__segment
@@ -260,6 +267,7 @@ class image:
         lines = []
         # 整頁切出的單字，二維陣列，經過雙行判斷
         words = []
+        count_line = 1
         for s in self.__segment:
             ret, s = cv2.threshold(s, 128, 255, cv2.THRESH_BINARY)
             row, col = s.shape
@@ -291,6 +299,8 @@ class image:
             for i in range(len(line)-1):
                 if line[i][1] == line[i+1][0]:
                     line[i+1][0] += 1
+
+            print("第" + str(count_line) + "行合併前共有 " + str(len(line)) + " 字")
 
             # 在原圖上標記上下候選線的位置，並存入Global_R跟Global_G中
             Global_R = []
@@ -336,12 +346,12 @@ class image:
                             break
                     if col*0.5 < med < col*1.5:
                         if x > med:
-                            WinSize = int(x+med*1.2)
+                            WinSize = int(x+med*1.1)
                         else:
                             if x - int((med - (x - last_bottom)) / 2) <= last_bottom:
-                                WinSize = int(int((x+last_bottom)/2)+med*1.2)
+                                WinSize = int(int((x+last_bottom)/2)+med*1.1)
                             else:
-                                WinSize = int(x + int((med - (x - last_bottom)) / 2) * 1.2 + (x - last_bottom))
+                                WinSize = int(x + int((med - (x - last_bottom)) / 2) * 1.1 + (x - last_bottom))
                     else:
                         WinSize = int(x+col*1.2)  # ???window size調整
                     if WinSize > row:
@@ -399,14 +409,19 @@ class image:
                         else:
                             seg.append(s[all[0]:all[-2], :])
             lines.append(seg.copy())
+            print("第" + str(count_line) + "行合併後共有 " + str(len(seg)) + " 字")
+            count_line += 1
             # for se in seg:
             #     cv2.imshow('test', se)
             #     cv2.waitKey(0)
             #     cv2.destroyAllWindows()
-            # ss = cv2.cvtColor(s, cv2.COLOR_GRAY2BGR)
-            # ss[s == 122] = (0, 0, 255)
-            # ss[s == 132] = (0, 255, 0)
+            ss = cv2.cvtColor(s, cv2.COLOR_GRAY2BGR)
+            ss[s == 122] = (0, 0, 255)
+            ss[s == 132] = (0, 255, 0)
+        count_line = 1
+        print("雙行判斷前共有 " + str(len(lines)) + " 行")
         for l in lines:
+            # count_line += 1
             tmp = []
             tmp_left = []
             last_is_two = False
@@ -414,13 +429,20 @@ class image:
                 del l[0]
             if len(l) > 0 and head_tail_not_a_word(l[-1]):
                 del l[-1]
+            count_word = 0
             for w in l:
+                count_word += 1
+                # cv2.imshow('test', w)
+                # cv2.waitKey(0)
+                # cv2.destroyAllWindows()
                 if not two_word(w):
                     if last_is_two and tmp != []:
                         words.append(tmp.copy())
                         tmp = tmp_left
                         tmp_left = []
                     tmp.append(normalize(w))
+                    cv2.imwrite("1383BG/"+"0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                            count_line) + "_S_" + str(count_word)+".jpg", normalize(w))
                     last_is_two = False
                 else:
                     last_is_two = True
@@ -428,13 +450,20 @@ class image:
                     if mid != 0:
                         tmp_left.append(normalize(w[:, 0:mid]))
                         tmp.append(normalize(w[:, mid:-1]))
+                        cv2.imwrite("1383BG/" + "0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                            count_line) + "_D_L" + str(count_word) + ".jpg", normalize(w[:, 0:mid]))
+                        cv2.imwrite("1383BG/"+"0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                            count_line) + "_D_R" + str(count_word)+".jpg", normalize(w[:, mid:-1]))
                     else:
                         tmp.append(normalize(w))
+                        cv2.imwrite("1383BG/" + "0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                            count_line) + "_S_" + str(count_word) + ".jpg", normalize(w))
                         last_is_two = False
             if tmp != []:
                 words.append(tmp.copy())
             if tmp_left != []:
                 words.append(tmp_left.copy())
+        print("雙行判斷後共有 " + str(len(words)) + " 行")
 
         # for li in words:
         #     for w in li:
@@ -513,7 +542,7 @@ class image:
             # cv2.waitKey(0)
             # cv2.destroyAllWindows()
             print("此行編號： " + str(count_name))
-            cv2.imwrite(str(count_name)+".jpg", ss)  # 尚未進行雙行切割及合併的單字切割影像
+            # cv2.imwrite(str(count_name)+".jpg", ss)  # 尚未進行雙行切割及合併的單字切割影像
             count_name += 1
             line1 = []
             line2 = []
@@ -851,12 +880,13 @@ def two_word(img):
     # # img_tmp = cv2.resize(img, (80, 45))
     # # img_tmp = cv2.cvtColor(img_tmp, cv2.COLOR_RGB2GRAY)
     # img_tmp = normalize_cnn(img)
-    # __, img_tmp = cv2.threshold(img_tmp, 128, 255, cv2.THRESH_BINARY_INV)  # 改成白底黑字
+    # # __, img_tmp = cv2.threshold(img_tmp, 128, 255, cv2.THRESH_BINARY_INV)  # 改成白底黑字
     # img_tmp = np.expand_dims(img_tmp, axis=-1)
     # img_tmp = np.expand_dims(img_tmp, axis=0)
     # img_tmp = img_tmp / 255
     # y = model.predict(img_tmp).tolist()
-    # if int(y[0][0]) == 1 or int(y[0][0]) == 3:
+    # # print(y[0].index(max(y[0])))
+    # if y[0].index(max(y[0])) == 0 or y[0].index(max(y[0])) == 2:
     #     # print("one")
     #     # cv2.imshow('test', img)
     #     # cv2.waitKey(0)
@@ -871,6 +901,9 @@ def two_word(img):
 
     global count_name1, count_name2, count_name
     h, w = img.shape
+    # if h*1.2 < w:
+    #     cv2.imwrite("testing/tmp/tmp_double_side/EJJ_"+str(count_name)+".jpg", img)
+    #     count_name+=1
     hist1 = []
     hist2 = []
     # ver_show = np.zeros((h,w), np.uint8)
@@ -945,103 +978,107 @@ def two_word(img):
             # print("two")
             # cv2.destroyAllWindows()
     if not middle_blank:
+        # cv2.imwrite("testing/tmp/tmp_single/EJJ_"+str(count_name)+".jpg", img)
+        # count_name += 1
         return False
     # 比較左右大小比例
     else:
-        mid = two_word_mid(img)
-        print("mid: " + str(h), str(w), str(mid))
-        left_img = img[:, 0:mid]
-        right_img = img[:, mid:-1]
-        # kernel = np.ones((3, 3), np.uint8)
-        # right_img = cv2.morphologyEx(right_img, cv2.MORPH_OPEN, kernel)
-        # left_img = cv2.morphologyEx(left_img, cv2.MORPH_OPEN, kernel)
-
-        left_h, left_w = left_img.shape
-        right_h, right_w = right_img.shape
-        left_hist1 = []
-        left_hist2 = []
-        right_hist1 = []
-        right_hist2 = []
-        # 左圖垂直投影
-        for i in range(left_w):
-            left_hist1.append(np.count_nonzero(left_img[:, i]))
-        # 左圖水平投影
-        for i in range(left_h):
-            left_hist2.append(np.count_nonzero(left_img[i, :]))
-        # 右圖垂直投影
-        for i in range(right_w):
-            right_hist1.append(np.count_nonzero(right_img[:, i]))
-        # 右圖水平投影
-        for i in range(right_h):
-            right_hist2.append(np.count_nonzero(right_img[i, :]))
-
-        left_hor_start = 0
-        left_hor_end = left_w-1
-        left_ver_start = 0
-        left_ver_end = left_h-1
-        right_hor_start = 0
-        right_hor_end = right_w-1
-        right_ver_start = 0
-        right_ver_end = right_h-1
-        # 左圖
-        for i in range(len(left_hist1)):
-            if left_hist1[i] > 1:
-                left_hor_start = i
-                break
-        left_hist1.reverse()
-        for i in range(len(left_hist1)):
-            if left_hist1[i] > 1:
-                left_hor_end = left_w - i
-                break
-        left_hist1.reverse()
-
-        for i in range(len(left_hist2)):
-            if left_hist2[i] > 1:
-                left_ver_start = i
-                break
-        left_hist2.reverse()
-        for i in range(len(left_hist2)):
-            if left_hist2[i] > 1:
-                left_ver_end = left_h - i
-                break
-        left_hist2.reverse()
-
-        # 右圖
-        for i in range(len(right_hist1)):
-            if right_hist1[i] > 1:
-                right_hor_start = i
-                break
-        right_hist1.reverse()
-        for i in range(len(right_hist1)):
-            if right_hist1[i] > 1:
-                right_hor_end = right_w - i
-                break
-        right_hist1.reverse()
-
-        for i in range(len(right_hist2)):
-            if right_hist2[i] > 1:
-                right_ver_start = i
-                break
-        right_hist2.reverse()
-        for i in range(len(right_hist2)):
-            if right_hist2[i] > 1:
-                right_ver_end = right_h - i
-                break
-        right_hist2.reverse()
-
-        # 長寬比、長度比、寬度比、周長
-        print(left_hor_start, left_hor_end, left_hor_end-left_hor_start)
-        print(left_ver_start, left_ver_end, left_ver_end-left_ver_start)
-        print(right_hor_start, right_hor_end, right_hor_end-right_hor_start)
-        print(right_ver_start, right_ver_end, right_ver_end-right_ver_start)
-        print("左圖長寬比：" + str((left_hor_end-left_hor_start)/(left_ver_end-left_ver_start)))
-        print("右圖長寬比：" + str((right_hor_end-right_hor_start)/(right_ver_end-right_ver_start)))
-        print("長度比：" + str((left_hor_end-left_hor_start)/(right_hor_end-right_hor_start)))
-        print("寬度比：" + str((left_ver_end-left_ver_start)/(right_ver_end-right_ver_start)))
-        cv2.imshow("left", left_img)
-        cv2.imshow("right", right_img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        # cv2.imwrite("testing/tmp/tmp_double/EJJ_"+str(count_name)+".jpg", img)
+        # count_name += 1
+        # mid = two_word_mid(img)
+        # print("mid: " + str(h), str(w), str(mid))
+        # left_img = img[:, 0:mid]
+        # right_img = img[:, mid:-1]
+        # # kernel = np.ones((3, 3), np.uint8)
+        # # right_img = cv2.morphologyEx(right_img, cv2.MORPH_OPEN, kernel)
+        # # left_img = cv2.morphologyEx(left_img, cv2.MORPH_OPEN, kernel)
+        #
+        # left_h, left_w = left_img.shape
+        # right_h, right_w = right_img.shape
+        # left_hist1 = []
+        # left_hist2 = []
+        # right_hist1 = []
+        # right_hist2 = []
+        # # 左圖垂直投影
+        # for i in range(left_w):
+        #     left_hist1.append(np.count_nonzero(left_img[:, i]))
+        # # 左圖水平投影
+        # for i in range(left_h):
+        #     left_hist2.append(np.count_nonzero(left_img[i, :]))
+        # # 右圖垂直投影
+        # for i in range(right_w):
+        #     right_hist1.append(np.count_nonzero(right_img[:, i]))
+        # # 右圖水平投影
+        # for i in range(right_h):
+        #     right_hist2.append(np.count_nonzero(right_img[i, :]))
+        #
+        # left_hor_start = 0
+        # left_hor_end = left_w-1
+        # left_ver_start = 0
+        # left_ver_end = left_h-1
+        # right_hor_start = 0
+        # right_hor_end = right_w-1
+        # right_ver_start = 0
+        # right_ver_end = right_h-1
+        # # 左圖
+        # for i in range(len(left_hist1)):
+        #     if left_hist1[i] > 1:
+        #         left_hor_start = i
+        #         break
+        # left_hist1.reverse()
+        # for i in range(len(left_hist1)):
+        #     if left_hist1[i] > 1:
+        #         left_hor_end = left_w - i
+        #         break
+        # left_hist1.reverse()
+        #
+        # for i in range(len(left_hist2)):
+        #     if left_hist2[i] > 1:
+        #         left_ver_start = i
+        #         break
+        # left_hist2.reverse()
+        # for i in range(len(left_hist2)):
+        #     if left_hist2[i] > 1:
+        #         left_ver_end = left_h - i
+        #         break
+        # left_hist2.reverse()
+        #
+        # # 右圖
+        # for i in range(len(right_hist1)):
+        #     if right_hist1[i] > 1:
+        #         right_hor_start = i
+        #         break
+        # right_hist1.reverse()
+        # for i in range(len(right_hist1)):
+        #     if right_hist1[i] > 1:
+        #         right_hor_end = right_w - i
+        #         break
+        # right_hist1.reverse()
+        #
+        # for i in range(len(right_hist2)):
+        #     if right_hist2[i] > 1:
+        #         right_ver_start = i
+        #         break
+        # right_hist2.reverse()
+        # for i in range(len(right_hist2)):
+        #     if right_hist2[i] > 1:
+        #         right_ver_end = right_h - i
+        #         break
+        # right_hist2.reverse()
+        #
+        # # 長寬比、長度比、寬度比、周長
+        # print(left_hor_start, left_hor_end, left_hor_end-left_hor_start)
+        # print(left_ver_start, left_ver_end, left_ver_end-left_ver_start)
+        # print(right_hor_start, right_hor_end, right_hor_end-right_hor_start)
+        # print(right_ver_start, right_ver_end, right_ver_end-right_ver_start)
+        # print("左圖長寬比：" + str((left_hor_end-left_hor_start)/(left_ver_end-left_ver_start)))
+        # print("右圖長寬比：" + str((right_hor_end-right_hor_start)/(right_ver_end-right_ver_start)))
+        # print("長度比：" + str((left_hor_end-left_hor_start)/(right_hor_end-right_hor_start)))
+        # print("寬度比：" + str((left_ver_end-left_ver_start)/(right_ver_end-right_ver_start)))
+        # cv2.imshow("left", left_img)
+        # cv2.imshow("right", right_img)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
         return True
     # cv2.destroyAllWindows()

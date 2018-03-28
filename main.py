@@ -21,7 +21,7 @@ import cv2
 from image import image
 
 # input_folder = 'book7/double/'
-input_folder = 'book7/double/'
+input_folder = '10/'
 
 # files = os.listdir(input_folder+"/PDF_to_JPG")
 # from keras.models import load_model
@@ -56,13 +56,13 @@ pages = []
 with open(input_folder + 'match.txt', 'r', encoding='utf-8') as fp:
     for line in fp:
         string = line.split('\n')[0]
-        if string.find('DD') != -1:
+        if string.find('EJJ') != -1 or string.find('DD') != -1:
             if context != []:
                 pages.append([filename, context])
                 context = []
             filename = string.replace("\ufeff", "")
         else:
-            string = string.replace("\uf470", "").replace("\uf6a4", "")
+            string = string.replace("\uf470", "").replace("\uf6a4", "").replace(" ", "")
             context.append(string)
 if context != []:
     pages.append([filename, context])
@@ -75,6 +75,7 @@ for subdir, dirs, tmp_files in os.walk(input_folder+"/PDF_to_JPG"):
 fp.close()
 wrong = 0
 right = 0
+count_right_page = 0
 count_page = 0
 count_word = 0
 count_line = 0
@@ -90,7 +91,8 @@ for page in pages:
     # count_page += 1
     # if count_page < 2642:
     #     continue
-    p = image(input_folder + "PDF_to_JPG" + "/" + page[0].split(".")[0]+'.jpg')
+    count_page += 1
+    p = image(input_folder + "PDF_to_JPG" + "/" + page[0].split(".")[0]+'.jpg', page[1])
     # p = image("DD1379BX3000021-101.jpg")
     p.pre_process()
     p.new_Vertical()
@@ -98,8 +100,7 @@ for page in pages:
     for words in page[1]:
         count_word += len(words)
     count_line += len(page[1])
-    print("正確行數： " + str(len(page[1])))
-    print("切割行數： " + str(len(img)))
+    # print("切割行數： " + str(len(img)) + "/" + str(len(page[1])))
     if len(page[1]) == len(img):  # 行數正確
         count = 0
         for i in range(len(page[1])):
@@ -107,22 +108,24 @@ for page in pages:
                 count += 1
         count_right_line += count
         if count == len(page[1]):  # 字數正確
+            count_right_page += 1
             # print(page[0].split(".")[0])
             # right+=1
-            with open(input_folder + "page_with_right_count.txt", "a", encoding='utf-8') as W:
-                W.writelines(page[0]+"\n")
-                for i in range(len(page[1])):
-                    W.writelines(page[1][i]+"\n")
-            W.close()
+            # with open(input_folder + "page_with_right_count.txt", "a", encoding='utf-8') as W:
+            #     W.writelines(page[0]+"\n")
+            #     for i in range(len(page[1])):
+            #         W.writelines(page[1][i]+"\n")
+            # W.close()
     else:
         count_wrong_line+=len(page[1])
+    print("正確頁數：" + str(count_right_page) + "/" + str(count_page) + " 頁" + "\n")
     # print("lines: ", len(img))
     # for p in img:
     #     print(len(p))
-    print("總行數： "+str(count_line))
-    print("行數錯誤之行數： "+str(count_wrong_line))
-    print("行數正確但字數錯誤之行數： "+str(count_line-count_wrong_line-count_right_line))
-    print("行數正確且字數正確之行數： "+str(count_right_line))
-    print("總字數："+str(count_word) + "\n")
+    # print("總行數： "+str(count_line))
+    # print("行數錯誤之行數： "+str(count_wrong_line))
+    # print("行數正確但字數錯誤之行數： "+str(count_line-count_wrong_line-count_right_line))
+    # print("行數正確且字數正確之行數： "+str(count_right_line))
+    # print("總字數："+str(count_word) + "\n")
     cv2.waitKey(0)
     cv2.destroyAllWindows()
