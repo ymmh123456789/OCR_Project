@@ -1,13 +1,13 @@
 import cv2
 import numpy as np
 import statistics
-# from keras.models import load_model
+from keras.models import load_model
 # import os
 # from time import gmtime, strftime
 # import pytesseract
 # from PIL import Image
 
-# model = load_model("NEW_blackB_whiteT1.0_model_2.h5")
+model = load_model("NEW_blackB_whiteT1.0_model_2.h5")
 one = 0
 two = 0
 three = 0
@@ -211,6 +211,35 @@ class image:
             # cv2.imshow('test', self.__segment[len(self.__segment)-1])
             # cv2.waitKey(0)
             # cv2.destroyAllWindows()
+
+        LINE_THRESHOLD = 0.3
+        HIST_THRESHOLD = 0.7
+        # combine = False
+        for index, img in enumerate(self.__segment):
+            left_img = img[:, :int(img.shape[1] * LINE_THRESHOLD)]
+            right_img = img[:, -int(img.shape[1] * LINE_THRESHOLD):]
+            left_pro, right_pro = verical_pro(left_img), verical_pro(right_img)
+            left_info, right_info = np.max(left_pro), np.max(right_pro)
+            # org = self.__segment[index].copy()
+            if left_info > img.shape[0] * HIST_THRESHOLD:
+                self.__segment[index] = self.__segment[index][:, np.argmax(left_pro) + 3:]
+                # combine = True
+            if right_info > img.shape[0] * HIST_THRESHOLD:
+                self.__segment[index] = self.__segment[index][:, :np.argmax(right_pro) - len(right_pro) - 1 - 3]
+                # combine = True
+                # if combine:
+                #     if left_info > img.shape[0] * HIST_THRESHOLD and np.argmax(left_pro) > img.shape[1] * 0.1:
+                #         print("(%d, %d)" % (img.shape[1], np.argmax(left_pro)))
+                #         cv2.imwrite('line1/' + self.filename + str(index) + 'O.jpg', org)
+                #         cv2.imwrite('line1/' + self.filename + str(index) + 'Z.jpg', self.__segment[index])
+                #     if right_info > img.shape[0] * HIST_THRESHOLD and abs(np.argmax(right_pro) - len(right_pro) - 1) > img.shape[1] * 0.1:
+                #         print("(%d, %d)" % (img.shape[1], abs(np.argmax(right_pro) - len(right_pro) - 1)))
+                #         cv2.imwrite('line1/' + self.filename + str(index) + 'O.jpg', org)
+                #         cv2.imwrite('line1/' + self.filename + str(index) + 'Z.jpg', self.__segment[index])
+                # else:
+                #     cv2.imwrite('line2/' + self.filename + str(index) + '.jpg', self.__segment[index])
+                # combine = False
+
         self.__segment.reverse()
         print("切割行數：" + str(len(self.__segment)) + "/" + str(len(self.words)) + " 行")
 
@@ -268,8 +297,12 @@ class image:
         # 整頁切出的單字，二維陣列，經過雙行判斷
         words = []
         count_line = 1
+        count_word = 0
         for s in self.__segment:
+            line_name = self.filename.split(".")[0] + "_" + str(count_line)
             ret, s = cv2.threshold(s, 128, 255, cv2.THRESH_BINARY)
+            # cv2.imshow("line", s)
+            # cv2.waitKey(0)
             row, col = s.shape
             data = []
             tmp_line = []
@@ -291,7 +324,7 @@ class image:
                 a = tmp_line[y]
                 b = tmp_line[y + 1]
                 x = sum(data[a:b])
-                if x > th * (b - a):  # 區域內白點數
+                if x > th * (b - a):  # 區域內白點數 ?????
                     line.append([a, b, b - a])
                 y += 1
 
@@ -313,6 +346,91 @@ class image:
                 Global_R.append(l[0])
                 s[l[1], :] = 132
                 Global_G.append(l[1])
+            # 寫錯位置的過高切割
+            # ranges = int(col*0.1)
+            # for l in line:
+            #     if l[1]-l[0] > col*1.1:
+            #         s[l[0], :] = 122
+            #         Global_R.append(l[0])
+            #         s[l[1], :] = 132
+            #         Global_G.append(l[1])
+            #         num_words = int((l[1] - l[0]) / col + 1)
+            #         for i in range(num_words):
+            #             med_candidate.append(int((l[1]-l[0])/num_words))
+            #         sep_line = []
+            #         if num_words > 1:
+            #             for i in range(1, num_words):
+            #                 minium = col*255
+            #                 minium_line = 0
+            #                 for j in range(ranges*-1, ranges+1, 1):
+            #                     if minium > cv2.countNonZero(s[l[0] + int((l[1]-l[0])/num_words*i)+j, :]):
+            #                         minium = cv2.countNonZero(s[l[0] + int((l[1]-l[0])/num_words*i)+j, :])
+            #                         minium_line = l[0] + int((l[1]-l[0])/num_words*i)+j
+            #                 sep_line.append(minium_line)
+            #         ss = cv2.cvtColor(s, cv2.COLOR_GRAY2BGR)
+            #         for sep in sep_line:
+            #             #ss[sep, :] = (0, 0, 255)
+            #             s[sep, :] = 132
+            #             Global_G.append(sep)
+            #             s[sep+1, :] = 122
+            #             Global_R.append(sep+1)
+            #         cv2.imshow("seg", ss[l[0]:l[1], :])
+            #         cv2.waitKey(0)
+            #         # cv2.destroyAllWindows()
+            #         for i in range(len(sep_line)):
+            #             img = cv2.cvtColor(ss[sep_line[i] - ranges * 2:sep_line[i] + (ranges + 1) * 2, :], cv2.COLOR_BGR2GRAY)
+            #             ret, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY)
+            #             connectivity=4
+            #             output = cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
+            #             labels = output[1]
+            #             centroids = output[3]
+            #             print(centroids)
+            #             print(labels)
+            #             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            #             img[int(img.shape[0]/2), :] = (128,128,128)
+            #             pic_cen = int(img.shape[0]/2)
+            #             sep_up = np.zeros(img.shape, np.uint8)
+            #             sep_down = np.zeros(img.shape, np.uint8)
+            #             for i in range(len(centroids)):
+            #                 if i != 0:
+            #                     img[int(centroids[i][1]), int(centroids[i][0])] = (0,0,255)
+            #                     if centroids[i][1] < pic_cen:
+            #                         sep_up[labels==i] = (255,255,255)
+            #                     else:
+            #                         sep_down[labels==i] = (255,255,255)
+            #                     # for j in range(centroids[i][1]):
+            #                     #     for k in range(centroids[i][0]):
+            #
+            #             cv2.namedWindow("cen", cv2.WINDOW_NORMAL)
+            #             cv2.resizeWindow("cen", img.shape[1] * 3, img.shape[0] * 3)
+            #             cv2.imshow("cen", img)
+            #             cv2.waitKey(0)
+            #
+            #             cv2.namedWindow("up", cv2.WINDOW_NORMAL)
+            #             cv2.resizeWindow("up", sep_up.shape[1] * 3, sep_up.shape[0] * 3)
+            #             cv2.imshow("up", sep_up)
+            #             cv2.waitKey(0)
+            #
+            #             cv2.namedWindow("down", cv2.WINDOW_NORMAL)
+            #             cv2.resizeWindow("down", sep_down.shape[1] * 3, sep_down.shape[0] * 3)
+            #             cv2.imshow("down", sep_down)
+            #             cv2.waitKey(0)
+            #
+            #         cv2.destroyAllWindows()
+            #         # print(l[1]-l[0], sep_line)
+            #         # cv2.imwrite("ya/" + self.filename.split(".")[0] + "_" + str(count_word) + ".jpg", s[l[0]:l[1], :])
+            #         # count_word += 1
+            #         # cv2.imshow("tmp", s[l[0]:l[1], :])
+            #         # cv2.waitKey(0)
+            #         # cv2.destroyAllWindows()
+            #     else:
+            #         med_candidate.append(l[2])
+            #         s[l[0], :] = 122
+            #         Global_R.append(l[0])
+            #         s[l[1], :] = 132
+            #         Global_G.append(l[1])
+            # Global_R.sort()
+            # Global_G.sort()
             # print("Global_R" + str(Global_R))
             # print("Global_G" + str(Global_G))
             # 預估字體之高度
@@ -344,84 +462,192 @@ class image:
                         if s[k, 0] == 132:
                             next_bottom = k
                             break
-                    if col*0.5 < med < col*1.5:
-                        if x > med:
-                            WinSize = int(x+med*1.1)
-                        else:
-                            if x - int((med - (x - last_bottom)) / 2) <= last_bottom:
-                                WinSize = int(int((x+last_bottom)/2)+med*1.1)
+                    # 區域太高要做切割
+                    if next_bottom - x > col * 1.1:
+                        ranges = int(col*0.1)
+                        num_words = int((next_bottom - x) / col + 1)
+                        sep_line = []
+                        if num_words > 1:
+                            for i in range(1, num_words):
+                                minium = col * 255
+                                minium_line = 0
+                                for j in range(ranges * -1, ranges + 1, 1):
+                                    if minium > cv2.countNonZero(s[x + int((next_bottom - x) / num_words * i) + j, :]):
+                                        minium = cv2.countNonZero(s[x + int((next_bottom - x) / num_words * i) + j, :])
+                                        minium_line = x + int((next_bottom - x) / num_words * i) + j
+                                sep_line.append(minium_line)
+                        ss = cv2.cvtColor(s, cv2.COLOR_GRAY2BGR)
+                        # cv2.imshow("seg", ss[x:next_bottom, :])
+                        # cv2.waitKey(0)
+                        # cv2.destroyAllWindows()
+                        sep_ups = []
+                        sep_downs = []
+                        merges = []
+                        for i in range(len(sep_line)):
+                            img = cv2.cvtColor(ss[sep_line[i] - ranges * 2:sep_line[i] + (ranges + 1) * 2, :],
+                                               cv2.COLOR_BGR2GRAY)
+                            ret, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY)
+                            connectivity = 4
+                            output = cv2.connectedComponentsWithStats(img, connectivity, cv2.CV_32S)
+                            labels = output[1]
+                            centroids = output[3]
+                            print(centroids)
+                            print(labels)
+                            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                            img[int(img.shape[0] / 2), :] = (128, 128, 128)
+                            pic_cen = int(img.shape[0] / 2)
+                            sep_up = np.zeros(img.shape, np.uint8)
+                            sep_down = np.zeros(img.shape, np.uint8)
+                            for i in range(len(centroids)):
+                                if i != 0:
+                                    img[int(centroids[i][1]), int(centroids[i][0])] = (0, 0, 255)
+                                    if centroids[i][1] < pic_cen:
+                                        sep_up[labels == i] = (255, 255, 255)
+                                    else:
+                                        sep_down[labels == i] = (255, 255, 255)
+                                        # for j in range(centroids[i][1]):
+                                        #     for k in range(centroids[i][0]):
+                            sep_up = cv2.cvtColor(sep_up, cv2.COLOR_BGR2GRAY)
+                            ___, sep_up = cv2.threshold(sep_up, 0, 255, cv2.THRESH_BINARY)
+                            sep_down = cv2.cvtColor(sep_down, cv2.COLOR_BGR2GRAY)
+                            ___, sep_down = cv2.threshold(sep_down, 0, 255, cv2.THRESH_BINARY)
+                            sep_ups.append(sep_up)
+                            sep_downs.append(sep_down)
+                            # cv2.namedWindow("cen", cv2.WINDOW_NORMAL)
+                            # cv2.resizeWindow("cen", img.shape[1] * 3, img.shape[0] * 3)
+                            # cv2.imshow("cen", img)
+                            # cv2.waitKey(0)
+                            #
+                            # cv2.namedWindow("up", cv2.WINDOW_NORMAL)
+                            # cv2.resizeWindow("up", sep_up.shape[1] * 3, sep_up.shape[0] * 3)
+                            # cv2.imshow("up", sep_up)
+                            # cv2.waitKey(0)
+                            #
+                            # cv2.namedWindow("down", cv2.WINDOW_NORMAL)
+                            # cv2.resizeWindow("down", sep_down.shape[1] * 3, sep_down.shape[0] * 3)
+                            # cv2.imshow("down", sep_down)
+                            # cv2.waitKey(0)
+                        for i in range(len(sep_line)):
+                            if len(sep_line) == 1:
+                                tmp = np.vstack((s[x: sep_line[i] - ranges * 2, :], sep_ups[0]))
+                                merges.append(tmp)
+                                tmp = np.vstack((sep_downs[0], s[sep_line[i] + (ranges + 1) * 2:next_bottom, :]))
+                                merges.append(tmp)
+                                break
+                            if i == 0:
+                                tmp = np.vstack((s[x:sep_line[i] - ranges * 2, :], sep_ups[0]))
+                                merges.append(tmp)
+                            elif i == len(sep_line)-1:
+                                tmp = np.vstack((sep_downs[i-1], s[sep_line[i-1]+(ranges + 1) * 2: sep_line[i]-ranges * 2, :], sep_ups[i]))
+                                merges.append(tmp)
+                                tmp = np.vstack((sep_downs[i], s[sep_line[i]+(ranges + 1) * 2:next_bottom, :]))
+                                merges.append(tmp)
                             else:
-                                WinSize = int(x + int((med - (x - last_bottom)) / 2) * 1.1 + (x - last_bottom))
-                    else:
-                        WinSize = int(x+col*1.2)  # ???window size調整
-                    if WinSize > row:
-                        WinSize = row
-                    # print(last_bottom, x , next_bottom, med)
-                    # print("win: " + str(WinSize))
-                    # 紀錄window size中所有的候選線
-                    for y in range(x, WinSize):
-                        if s[y, 0] == 122:
-                            r.append(y)
-                            all.append(y)
-                        elif s[y, 0] == 132:
-                            g.append(y)
-                            all.append(y)
-                        else:
-                            pass
-                    count = len(all)
+                                tmp = np.vstack((sep_downs[i-1], s[sep_line[i-1]+(ranges + 1) * 2: sep_line[i]-ranges * 2, :], sep_ups[i]))
+                                merges.append(tmp)
+                        for m in merges:
+                            seg.append(m)
+                            # cv2.namedWindow("m", cv2.WINDOW_NORMAL)
+                            # cv2.resizeWindow("m", m.shape[1] * 3, m.shape[0] * 3)
+                            # cv2.imshow("m", m)
+                            # cv2.waitKey(0)
+                        # cv2.destroyAllWindows()
 
-                    if count <= 2:
-                        seg.append(s[x: Global_G[Global_R.index(x)], :])
-                    elif 2 < count <= 3:
-                        seg.append(s[r[0]:g[0], :])
-                    elif count == 4:
-                        index = all.index(g[0])
-                        if all[index + 1] - g[0] < col * 0.4:
-                            s[g[0], :] = 0
-                            Global_G.remove(g[0])
-                            s[r[1], :] = 0
-                            Global_R.remove(r[1])
-                            seg.append(s[r[0]:g[1], :])
-                        else:
-                            seg.append(s[r[0]:g[0], :])
-                            seg.append(s[r[1]:g[1], :])
+                    # 區域太小要做合併
                     else:
-                        # 判斷最後一個是紅還是綠線
-                        if g[-1] > r[-1]:
-                            tmp = all[1:-1]
-                            flag = True
+                        if col*0.5 < med < col*1.5:
+                            if next_bottom-x > med:
+                                WinSize = int(x + med * 1.1)
+                            else:
+                                if x - int((med - (next_bottom - x)) / 2) <= last_bottom:
+                                    WinSize = int(int((x+last_bottom)/2)+med*1.1)
+                                else:
+                                    WinSize = int(x + med*1.1 - int((med - (next_bottom - x)) / 2))
                         else:
-                            tmp = all[1:-2]
-                            flag = False
-                        # 將中間所有的線都刪除
-                        # print("All" + str(all))
-                        # print(tmp)
-                        for t in tmp:
-                            if s[t, 0] == 122:
-                                Global_R.remove(t)
-                            elif s[t, 0] == 132:
-                                Global_G.remove(t)
+                            WinSize = int(x+col)  # ???col決定window size的方法調整
+                        if WinSize > row:
+                            WinSize = row
+                        # print(med, WinSize-x)
+                        # print(last_bottom, x , next_bottom, med)
+                        # print("win: " + str(WinSize))
+                        # 紀錄window size中所有的候選線
+                        for y in range(x, WinSize):
+                            if s[y, 0] == 122:
+                                r.append(y)
+                                all.append(y)
+                            elif s[y, 0] == 132:
+                                g.append(y)
+                                all.append(y)
                             else:
                                 pass
-                            s[t, :] = 0
-                        if flag:
-                            seg.append(s[all[0]:all[-1], :])
+                        count = len(all)
+
+                        if count <= 2:
+                            seg.append(s[x: Global_G[Global_R.index(x)], :])
+                            # cv2.imwrite("ha/" + self.filename.split(".")[0] + "_" + str(count_word) + ".jpg", seg[-1])
+                            # count_word += 1
+                        elif 2 < count <= 3:
+                            seg.append(s[r[0]:g[0], :])
+                            # cv2.imwrite("ha/" + self.filename.split(".")[0] + "_" + str(count_word) + ".jpg", seg[-1])
+                            # count_word += 1
+                        elif count == 4:
+                            index = all.index(g[0])
+                            if all[index + 1] - g[0] < col * 0.4:
+                                s[g[0], :] = 0
+                                Global_G.remove(g[0])
+                                s[r[1], :] = 0
+                                Global_R.remove(r[1])
+                                seg.append(s[r[0]:g[1], :])
+                                # cv2.imwrite("ha/" + self.filename.split(".")[0] + "_" + str(count_word) + ".jpg", seg[-1])
+                                # count_word += 1
+                            else:
+                                seg.append(s[r[0]:g[0], :])
+                                # cv2.imwrite("ha/" + self.filename.split(".")[0] + "_" + str(count_word) + ".jpg", seg[-1])
+                                # count_word += 1
+                                seg.append(s[r[1]:g[1], :])
+                                # cv2.imwrite("ha/" + self.filename.split(".")[0] + "_" + str(count_word) + ".jpg", seg[-1])
+                                # count_word += 1
                         else:
-                            seg.append(s[all[0]:all[-2], :])
+                            # 判斷最後一個是紅還是綠線
+                            if g[-1] > r[-1]:
+                                tmp = all[1:-1]
+                                flag = True
+                            else:
+                                tmp = all[1:-2]
+                                flag = False
+                            # 將中間所有的線都刪除
+                            # print("All" + str(all))
+                            # print(tmp)
+                            for t in tmp:
+                                if s[t, 0] == 122:
+                                    Global_R.remove(t)
+                                elif s[t, 0] == 132:
+                                    Global_G.remove(t)
+                                else:
+                                    pass
+                                s[t, :] = 0
+                            if flag:
+                                seg.append(s[all[0]:all[-1], :])
+                            else:
+                                seg.append(s[all[0]:all[-2], :])
+                            # cv2.imwrite("ha/" + self.filename.split(".")[0] + "_" + str(count_word) + ".jpg", seg[-1])
+                            # count_word += 1
             lines.append(seg.copy())
             print("第" + str(count_line) + "行合併後共有 " + str(len(seg)) + " 字")
             count_line += 1
+            # cv2.imwrite("yolo/lines/" + line_name + ".jpg", s)
             # for se in seg:
             #     cv2.imshow('test', se)
             #     cv2.waitKey(0)
             #     cv2.destroyAllWindows()
-            ss = cv2.cvtColor(s, cv2.COLOR_GRAY2BGR)
-            ss[s == 122] = (0, 0, 255)
-            ss[s == 132] = (0, 255, 0)
-        count_line = 1
+            # ss = cv2.cvtColor(s, cv2.COLOR_GRAY2BGR)
+            # ss[s == 122] = (0, 0, 255)
+            # ss[s == 132] = (0, 255, 0)
+        count_line = 0
         print("雙行判斷前共有 " + str(len(lines)) + " 行")
         for l in lines:
-            # count_line += 1
+            count_line += 1
+            line_name = self.filename.split(".")[0] + "_" + str(count_line)
             tmp = []
             tmp_left = []
             last_is_two = False
@@ -431,7 +657,7 @@ class image:
                 del l[-1]
             count_word = 0
             for w in l:
-                count_word += 1
+                # count_word += 1
                 # cv2.imshow('test', w)
                 # cv2.waitKey(0)
                 # cv2.destroyAllWindows()
@@ -441,8 +667,13 @@ class image:
                         tmp = tmp_left
                         tmp_left = []
                     tmp.append(normalize(w))
-                    cv2.imwrite("1383BG/"+"0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
-                            count_line) + "_S_" + str(count_word)+".jpg", normalize(w))
+                    # cv2.imshow("w", w)
+                    # cv2.waitKey(0)
+                    # cv2.imwrite("yolo/words/" + line_name + "_" + str(count_word) + ".jpg", w)
+                    # count_word+=1
+                    # cv2.imwrite("1383BG/"+"0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                    #         count_line) + "_S_" + str(count_word)+".jpg", normalize(w))
+                    # count_word+=1
                     last_is_two = False
                 else:
                     last_is_two = True
@@ -450,14 +681,29 @@ class image:
                     if mid != 0:
                         tmp_left.append(normalize(w[:, 0:mid]))
                         tmp.append(normalize(w[:, mid:-1]))
-                        cv2.imwrite("1383BG/" + "0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
-                            count_line) + "_D_L" + str(count_word) + ".jpg", normalize(w[:, 0:mid]))
-                        cv2.imwrite("1383BG/"+"0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
-                            count_line) + "_D_R" + str(count_word)+".jpg", normalize(w[:, mid:-1]))
+                        # cv2.imshow("w", w[:, 0:mid])
+                        # cv2.waitKey(0)
+                        # cv2.imshow("w", w[:, mid:-1])
+                        # cv2.waitKey(0)
+                        # cv2.imwrite("yolo/words/" + line_name + "_" + str(count_word) + ".jpg", w[:, 0:mid])
+                        # count_word += 1
+                        # cv2.imwrite("yolo/words/" + line_name + "_" + str(count_word) + ".jpg", w[:, mid:-1])
+                        # count_word += 1
+                        # cv2.imwrite("1383BG/" + "0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                        #     count_line) + "_D_L" + str(count_word) + ".jpg", normalize(w[:, 0:mid]))
+                        # count_word+=1
+                        # cv2.imwrite("1383BG/"+"0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                        #     count_line) + "_D_R" + str(count_word)+".jpg", normalize(w[:, mid:-1]))
+                        # count_word+=1
                     else:
                         tmp.append(normalize(w))
-                        cv2.imwrite("1383BG/" + "0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
-                            count_line) + "_S_" + str(count_word) + ".jpg", normalize(w))
+                        # cv2.imshow("w", w)
+                        # cv2.waitKey(0)
+                        # cv2.imwrite("yolo/words/" + line_name + "_" + str(count_word) + ".jpg", w)
+                        # count_word+=1
+                        # cv2.imwrite("1383BG/" + "0_" + self.filename[2:8] + "_" + self.filename[8:-4] + "_" + str(
+                        #     count_line) + "_S_" + str(count_word) + ".jpg", normalize(w))
+                        # count_word+=1
                         last_is_two = False
             if tmp != []:
                 words.append(tmp.copy())
@@ -470,15 +716,17 @@ class image:
         #         cv2.imshow('YZYZY', w )
         #         cv2.waitKey(0)
         #         cv2.destroyAllWindows()
-        # for j in range(len(words)):
-        #     a = words[j][0]
-        #     for i in range(1, len(words[j])):
-        #         a = np.vstack((a, words[j][i]))
-        #     cv2.namedWindow("0", cv2.WINDOW_NORMAL)
-        #     cv2.resizeWindow("0", 20, len(words[j])*45)
-        #     cv2.imshow("0", a)
-        #     cv2.waitKey()
-        #     cv2.destroyAllWindows()
+        for j in range(len(words)):
+            a = words[j][0]
+            words[j][0][-3:-1, :] = 128
+            for i in range(1, len(words[j])):
+                words[j][i][-3:-1, :] = 128
+                a = np.vstack((a, words[j][i]))
+            cv2.namedWindow("0", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("0", 10, len(words[j])*45)
+            cv2.imshow("0", a)
+            cv2.waitKey()
+            cv2.destroyAllWindows()
         return words
 
 
@@ -560,18 +808,26 @@ class image:
                     r = []
                     g = []
                     all = []
-                    # if last_bottom!=0:
-                    #     WinSize = int((x+last_bottom)/2)+col
-                    # else:
-                    if col*0.5 < med < col*1.5:
+                    ##########
+                    # 設定window size
+                    # next_bottom = 0
+                    # for k in range(x + 1, row):
+                    #     if s[k, 0] == 132:
+                    #         next_bottom = k
+                    #         break
+                    if col * 0.5 < med < col * 1.5:
                         if x > med:
-                            WinSize = int(x+med*1.2)
+                            WinSize = int(x + med * 1.1)
                         else:
-                            WinSize = int(x+int((med-x)/2)*1.2)
+                            if x - int((med - (x - last_bottom)) / 2) <= last_bottom:
+                                WinSize = int(int((x + last_bottom) / 2) + med * 1.1)
+                            else:
+                                WinSize = int(x + int((med - (x - last_bottom)) / 2) * 1.1 + (x - last_bottom))
                     else:
-                        WinSize = int(x+col*1.2)  # ???window size調整
+                        WinSize = int(x + col * 1.2)  # ???window size調整
                     if WinSize > row:
                         WinSize = row
+                    ##############
                     for y in range(x, WinSize):
                         if s[y, 0] == 122:
                             r.append(y)
@@ -876,28 +1132,29 @@ count_name1 = 0
 count_name2 = 0
 count_name = 0
 def two_word(img):
-    # # cv2.imshow('test', img)
-    # # img_tmp = cv2.resize(img, (80, 45))
-    # # img_tmp = cv2.cvtColor(img_tmp, cv2.COLOR_RGB2GRAY)
-    # img_tmp = normalize_cnn(img)
-    # # __, img_tmp = cv2.threshold(img_tmp, 128, 255, cv2.THRESH_BINARY_INV)  # 改成白底黑字
-    # img_tmp = np.expand_dims(img_tmp, axis=-1)
-    # img_tmp = np.expand_dims(img_tmp, axis=0)
-    # img_tmp = img_tmp / 255
-    # y = model.predict(img_tmp).tolist()
-    # # print(y[0].index(max(y[0])))
-    # if y[0].index(max(y[0])) == 0 or y[0].index(max(y[0])) == 2:
-    #     # print("one")
-    #     # cv2.imshow('test', img)
-    #     # cv2.waitKey(0)
-    #     # cv2.destroyWindow('test')
-    #     return False
-    # else:
-    #     # print("two")
-    #     # cv2.imshow('test', img)
-    #     # cv2.waitKey(0)
-    #     # cv2.destroyWindow('test')
-    #     return True
+    # return False
+    # cv2.imshow('test', img)
+    # img_tmp = cv2.resize(img, (80, 45))
+    # img_tmp = cv2.cvtColor(img_tmp, cv2.COLOR_RGB2GRAY)
+    img_tmp = normalize_cnn(img)
+    # __, img_tmp = cv2.threshold(img_tmp, 128, 255, cv2.THRESH_BINARY_INV)  # 改成白底黑字
+    img_tmp = np.expand_dims(img_tmp, axis=-1)
+    img_tmp = np.expand_dims(img_tmp, axis=0)
+    img_tmp = img_tmp / 255
+    y = model.predict(img_tmp).tolist()
+    # print(y[0].index(max(y[0])))
+    if y[0].index(max(y[0])) == 0 or y[0].index(max(y[0])) == 2:
+        # print("one")
+        # cv2.imshow('test', img)
+        # cv2.waitKey(0)
+        # cv2.destroyWindow('test')
+        return False
+    else:
+        # print("two")
+        # cv2.imshow('test', img)
+        # cv2.waitKey(0)
+        # cv2.destroyWindow('test')
+        return True
 
     global count_name1, count_name2, count_name
     h, w = img.shape

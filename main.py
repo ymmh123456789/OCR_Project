@@ -21,7 +21,7 @@ import cv2
 from image import image
 
 # input_folder = 'book7/double/'
-input_folder = '10/'
+input_folder = 'testing/one/'
 
 # files = os.listdir(input_folder+"/PDF_to_JPG")
 # from keras.models import load_model
